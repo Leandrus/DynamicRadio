@@ -28,6 +28,27 @@ angular.module('beamng.apps')
       // ----------------------------------------------------------------------
       var audio = new Audio();
       audio.preload = 'auto';
+      var pendingRadioSeek = false;       // Bandera para sintonización en punto aleatorio en modo RADIO
+      var trackPlayStartTime = 0;         // Timestamp del momento en que empezó a sonar la pista actual
+
+      /**
+       * Aplica un punto de reproducción aleatorio (entre 0% y 90% de la duración)
+       * cuando se sintoniza una emisora en modo RADIO, simulando una transmisión en vivo.
+       */
+      function applyPendingRadioSeek() {
+        if (!pendingRadioSeek) return;
+        if (!isFinite(audio.duration) || audio.duration <= 10) return;
+        if (audio.readyState < 1) return;
+
+        pendingRadioSeek = false;
+        var maxPercent = 0.90; // Entre 0% (inicio) y 90% del audio
+        var randomTime = Math.random() * (audio.duration * maxPercent);
+        try {
+          audio.currentTime = randomTime;
+        } catch (e) {
+          $log.warn('DynamicRadio: no se pudo ajustar punto aleatorio en radio', e);
+        }
+      }
 
       // ----------------------------------------------------------------------
       // Estado del Componente
@@ -85,7 +106,12 @@ angular.module('beamng.apps')
       // ----------------------------------------------------------------------
       // Controladores de Eventos del Elemento Audio HTML5
       // ----------------------------------------------------------------------
+      audio.onloadedmetadata = function () {
+        applyPendingRadioSeek();
+      };
+
       audio.onplaying = function () {
+        trackPlayStartTime = Date.now();
         $scope.$evalAsync(function () {
           $scope.isPlaying = true;
           $scope.statusText = $scope.isTaxi ? 'TAXI' : (($scope.mode === 'RADIO') ? 'EN VIVO' : 'PLAY');
@@ -117,8 +143,15 @@ angular.module('beamng.apps')
 
       audio.onended = function () {
         $scope.$evalAsync(function () {
+          // Protección contra falsos onended inmediatos (seeks no soportados o búfer vacío en CEF):
+          // Una pista solo se considera terminada si estuvo reproduciéndose al menos 3 segundos reales.
+          var elapsed = Date.now() - trackPlayStartTime;
+          if (!trackPlayStartTime || elapsed < 3000) {
+            return;
+          }
+
           if ($scope.isPoweredOn) {
-            // Avanza automáticamente a la siguiente emisora/pista al finalizar
+            // Avanza automáticamente a la siguiente emisora/pista al finalizar de verdad
             advanceTrackInternal();
           } else {
             $scope.isPlaying = false;
@@ -239,8 +272,20 @@ angular.module('beamng.apps')
         if (item && item.path) {
           try {
             audio.pause();
+            trackPlayStartTime = Date.now();
             audio.src = item.path;
+
+            // En modo RADIO, sintonizar en un punto aleatorio (entre 0% y 90% de la duración)
+            // para dar la sensación realista de que la emisora ya estaba en vivo transmitiendo
+            if ($scope.mode === 'RADIO') {
+              pendingRadioSeek = true;
+            } else {
+              pendingRadioSeek = false;
+            }
+
             audio.load();
+            applyPendingRadioSeek();
+
             $scope.applyVolume();
             var playPromise = audio.play();
             if (playPromise !== undefined) {
@@ -418,12 +463,20 @@ angular.module('beamng.apps')
       // ----------------------------------------------------------------------
       // Autoreproducción Aleatoria al Cambiar de Auto
       // ----------------------------------------------------------------------
+      var lastCarSwitchTime = 0;
+
       /**
        * Selecciona el modo y reproduce automáticamente:
-       * - En Taxi: SIEMPRE modo 'RADIO' de forma obligatoria y aleatoria.
+       * - En Taxi (pasajero): SIEMPRE modo 'RADIO' de forma obligatoria y aleatoria.
        * - En coche normal: 50% de probabilidad aleatoria entre 'RADIO' o 'MP3'.
        */
       function playRandomOnCarSwitch() {
+        var now = Date.now();
+        if (now - lastCarSwitchTime < 1500) {
+          return;
+        }
+        lastCarSwitchTime = now;
+
         if (!$scope.isPoweredOn) {
           $scope.isPoweredOn = true;
         }
@@ -499,31 +552,32 @@ angular.module('beamng.apps')
             return;
           }
 
-          // El jugador está al volante o a bordo de un vehículo válido
-          var isDifferentVehicle = (currentVehicleId !== null && currentVehicleId !== vehId);
-          var isFirstVehicle = (currentVehicleId === null);
-          var taxiStarted = (!prevIsTaxi && $scope.isTaxi);
-          var taxiEnded = (prevIsTaxi && !$scope.isTaxi);
+          var isSameVehicle = (currentVehicleId !== null && currentVehicleId === vehId);
+          var isSameTaxi = (prevIsTaxi === $scope.isTaxi);
 
-          if (isFirstVehicle || isDifferentVehicle || taxiStarted) {
-            // Subió a un auto diferente, primera vez, o se inició viaje como pasajero de taxi
-            currentVehicleId = vehId;
-            wasPlayingBeforeExit = false;
-
-            if (listsLoaded) {
-              playRandomOnCarSwitch();
-            } else {
-              pendingAutoPlayOnCarSwitch = true;
-            }
-          } else {
-            // Es el mismo vehículo (ej. se bajó un momento y volvió a subir) -> reanudar si estaba sonando
+          if (isSameVehicle && isSameTaxi) {
+            // Mismo vehículo y mismo modo: reanudar si el jugador se había bajado y volvió a subir
             if (!prevInVeh && wasPlayingBeforeExit && $scope.isPoweredOn) {
               wasPlayingBeforeExit = false;
               audio.play().catch(function () {});
-            } else if (taxiEnded) {
-              // Finalizó el viaje como pasajero: restaurar visualización normal y desbloquear
-              $scope.updateDisplay();
             }
+            return;
+          }
+
+          // El jugador subió a un auto diferente, primera vez, o cambió estado de taxi
+          var taxiEnded = (prevIsTaxi && !$scope.isTaxi);
+          currentVehicleId = vehId;
+          wasPlayingBeforeExit = false;
+
+          if (taxiEnded) {
+            // Finalizó el viaje como pasajero: restaurar visualización normal y controles
+            $scope.updateDisplay();
+          }
+
+          if (listsLoaded) {
+            playRandomOnCarSwitch();
+          } else {
+            pendingAutoPlayOnCarSwitch = true;
           }
         });
       }
@@ -555,15 +609,7 @@ angular.module('beamng.apps')
         checkVehicleState();
       });
 
-      $scope.$on('VehicleChange', function () {
-        checkVehicleState();
-      });
-
       $scope.$on('onVehicleSwitched', function () {
-        checkVehicleState();
-      });
-
-      $scope.$on('onVehicleSpawned', function () {
         checkVehicleState();
       });
 
@@ -579,8 +625,8 @@ angular.module('beamng.apps')
         checkVehicleState();
       });
 
-      // Chequeo periódico de seguridad para el estado del vehículo
-      var vehicleCheckTimer = setInterval(checkVehicleState, 1500);
+      // Chequeo periódico de seguridad para el estado del vehículo (cada 2 segundos)
+      var vehicleCheckTimer = setInterval(checkVehicleState, 2000);
 
       // ----------------------------------------------------------------------
       // Inicialización de la Aplicación

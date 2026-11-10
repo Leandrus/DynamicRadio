@@ -69,7 +69,7 @@ local function isTaxiVehicle(veh)
 
   -- 4. Rol de tráfico si está registrado
   if gameplay_traffic and gameplay_traffic.getTrafficData then
-    local vehId = veh:getId()
+    local vehId = (veh.getID and veh:getID()) or (veh.getId and veh:getId()) or -1
     local tv = gameplay_traffic.getTrafficData()[vehId]
     if tv and (tv.role == 'taxi' or tv.autoRole == 'taxi' or tv.isTaxi) then
       return true
@@ -134,27 +134,20 @@ local function checkIsTaxiPassenger(veh)
 end
 
 --- Devuelve el estado actual del vehículo para la interfaz UI.
--- @param explicitVehId number|nil: ID opcional del vehículo si viene directamente de un evento del motor
 -- @return table { inVehicle = boolean, vehicleId = number, isTaxi = boolean }
-function M.getVehicleState(explicitVehId)
+function M.getVehicleState()
   local inVeh = checkInVehicle()
   local veh = be:getPlayerVehicle(0)
   local vehId = -1
   local isPassengerInTaxi = false
 
-  if inVeh then
-    if explicitVehId and explicitVehId >= 0 then
-      vehId = explicitVehId
-    elseif veh then
+  if inVeh and veh then
+    if veh.getID then
+      vehId = veh:getID()
+    elseif veh.getId then
       vehId = veh:getId()
     end
-
-    local currentVeh = veh
-    if explicitVehId and explicitVehId >= 0 and (not currentVeh or currentVeh:getId() ~= explicitVehId) then
-      currentVeh = be:getObjectByID(explicitVehId) or currentVeh
-    end
-
-    isPassengerInTaxi = checkIsTaxiPassenger(currentVeh)
+    isPassengerInTaxi = checkIsTaxiPassenger(veh)
   end
 
   return {
@@ -165,8 +158,8 @@ function M.getVehicleState(explicitVehId)
 end
 
 --- Emite un evento a guihooks para notificar a AngularJS del cambio de vehículo.
-local function notifyVehicleState(explicitVehId)
-  local state = M.getVehicleState(explicitVehId)
+local function notifyVehicleState()
+  local state = M.getVehicleState()
   guihooks.trigger("DynamicRadioVehicleState", state)
 end
 
@@ -350,25 +343,11 @@ end
 
 M.onVehicleSwitched = function(oid, nid, player)
   if not player or player == 0 then
-    notifyVehicleState(nid)
-  else
     notifyVehicleState()
   end
 end
 
 M.onCameraChanged = function()
-  notifyVehicleState()
-end
-
-M.onVehicleResetted = function(vehicleID)
-  notifyVehicleState(vehicleID)
-end
-
-M.onVehicleSpawned = function(vehicleID)
-  notifyVehicleState()
-end
-
-M.onVehicleDestroyed = function(vehicleID)
   notifyVehicleState()
 end
 
