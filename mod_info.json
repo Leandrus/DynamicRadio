@@ -1,0 +1,6 @@
+{
+  "name": "Dynamic Radio & Car Stereo",
+  "version": "2.0.0",
+  "author": "Leandrus",
+  "description": "Estéreo HUD para vehículos en BeamNG.drive. Reproducción 100% local y offline de música (music_mp3) y emisoras de radio simuladas (music_radio). Interfaz compacta estilo 1-DIN con auto-ocultado fuera del vehículo."
+}

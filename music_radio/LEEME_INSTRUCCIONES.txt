@@ -1,0 +1,23 @@
+================================================================================
+CARPETA DE EMISORAS DE RADIO - DYNAMIC RADIO MOD (music_radio/)
+================================================================================
+
+Aquí puedes colocar grabaciones de radio, programas de emisoras, cuñas o podcasts
+para simular sintonía de radio real mientras conduces en BeamNG.drive.
+
+FORMATOS SOPORTADOS:
+- .mp3 (Recomendado)
+- .ogg
+- .wav
+- .flac
+
+CONSEJOS DE NOMBRADO:
+El estéreo detecta automáticamente frecuencias de radio si las incluyes en el nombre:
+Ejemplos:
+- CSR 103.9.mp3               -> Sintoniza dial 103.9 FM
+- Master Sounds 98.3.mp3      -> Sintoniza dial 98.3 FM
+- 103.3 FM - La Mega.mp3      -> Sintoniza dial 103.3 FM
+- Flash FM (GTA Vice City).mp3 -> Si no tiene número, el mod asigna un dial FM virtual automáticamente.
+
+El dial FM y el nombre limpio se mostrarán en la pantalla LCD del estéreo al sintonizarla.
+================================================================================

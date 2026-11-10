@@ -1,0 +1,20 @@
+================================================================================
+CARPETA DE MÚSICA PERSONAL - DYNAMIC RADIO MOD (music_mp3/)
+================================================================================
+
+¡Aquí puedes colocar todas tus canciones y pistas de música personal!
+
+El reproductor estéreo del mod escanea automáticamente esta carpeta al iniciar
+el juego o al presionar el botón de recarga (⟳) en la interfaz.
+
+FORMATOS SOPORTADOS NATIVAMENTE POR BEAMNG:
+- .mp3 (Recomendado)
+- .ogg
+- .wav
+- .flac
+
+CONSEJOS:
+1. Puedes añadir todas las canciones que desees.
+2. En el modo MP3 puedes activar el modo aleatorio (botón 🔀) para variar el orden.
+3. El título en la pantalla LCD se formatea y limpia automáticamente para una apariencia profesional.
+================================================================================

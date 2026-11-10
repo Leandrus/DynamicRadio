@@ -1,0 +1,27 @@
+# Archivos de audio (para no subir música con derechos de autor ni exceder límites de GitHub)
+*.mp3
+*.m4a
+*.aac
+*.opus
+*.ogg
+*.wav
+*.flac
+*.wma
+*.webm
+
+# Permitir archivos de control e instrucciones dentro de las carpetas de música
+!music_mp3/_convertir_a_mp3.bat
+!music_mp3/LEEME_INSTRUCCIONES.txt
+!music_radio/_convertir_a_mp3.bat
+!music_radio/LEEME_INSTRUCCIONES.txt
+
+# Archivos de sistema y editores
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+.vscode/
+.idea/
+*.log
+

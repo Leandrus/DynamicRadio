@@ -1,0 +1,22 @@
+{
+  "domElement": "<dynamic-radio></dynamic-radio>",
+  "name": "Dynamic Radio",
+  "types": [
+    "ui.apps.categories.audio",
+    "ui.apps.categories.fun"
+  ],
+  "description": "HUD Car Stereo: Reproductor local de música MP3 y emisoras de radio simuladas estilo 1-DIN.",
+  "css": {
+    "top": "20px",
+    "left": "20px",
+    "width": "320px",
+    "height": "105px"
+  },
+  "author": "Leandrus",
+  "version": "2.0.0",
+  "directive": "dynamicRadio",
+  "appName": "dynamicRadio",
+  "category": "Audio",
+  "isAuxiliary": false,
+  "interactive": "yes"
+}
