@@ -28,23 +28,101 @@ local function checkInVehicle()
   return true
 end
 
+--- Comprueba si el vehículo actual o la sesión de juego corresponde a un taxi.
+-- Detecta:
+-- 1. Si el jugador es pasajero de un viaje en taxi activo (Career Mode o RLS Overhaul).
+-- 2. Si el jugador está realizando un trabajo/misión de taxi activo.
+-- 3. Si el vehículo activo es una configuración o modelo de taxi (.pc, JBeam o nombre).
+-- 4. Si el vehículo tiene el rol de tráfico 'taxi'.
+-- @param veh table|nil: Objeto vehículo de BeamNG
+-- @return boolean
+local function checkIsTaxi(veh)
+  -- 1. Viaje en taxi activo (pasajero en taxi contratado)
+  if extensions.overhaul_integration_services_taxi and extensions.overhaul_integration_services_taxi.isTaxiRideActive and extensions.overhaul_integration_services_taxi.isTaxiRideActive() then
+    return true
+  end
+  if extensions.gameplay_taxi and extensions.gameplay_taxi.isTaxiRideActive and extensions.gameplay_taxi.isTaxiRideActive() then
+    return true
+  end
+
+  -- 2. Misión o trabajo de taxista activo
+  if extensions.overhaul_jobs_taxi_taxi and extensions.overhaul_jobs_taxi_taxi.isTaxiJobActive and extensions.overhaul_jobs_taxi_taxi.isTaxiJobActive() then
+    return true
+  end
+
+  if not veh then return false end
+
+  -- 3. Archivo de configuración del vehículo (.pc / partConfig)
+  local partConfig = veh.partConfig
+  if (not partConfig or partConfig == "") and veh.getField then
+    partConfig = veh:getField("partConfig", "")
+  end
+  if type(partConfig) == "string" and string.find(string.lower(partConfig), "taxi") then
+    return true
+  end
+
+  -- 4. Nombre JBeam del modelo
+  local jbeam = veh.JBeam
+  if (not jbeam or jbeam == "") and veh.getJBeamFilename then
+    jbeam = veh:getJBeamFilename()
+  end
+  if type(jbeam) == "string" and string.find(string.lower(jbeam), "taxi") then
+    return true
+  end
+
+  -- 5. Metadatos de core_vehicles si están disponibles
+  if core_vehicles and core_vehicles.getCurrentVehicleDetails then
+    local details = core_vehicles.getCurrentVehicleDetails()
+    if details then
+      if details.currentConfig and details.currentConfig.Name and string.find(string.lower(details.currentConfig.Name), "taxi") then
+        return true
+      end
+      if details.model and details.model.Name and string.find(string.lower(details.model.Name), "taxi") then
+        return true
+      end
+    end
+  end
+
+  -- 6. Rol de tráfico si está registrado
+  if gameplay_traffic and gameplay_traffic.getTrafficData then
+    local vehId = veh:getId()
+    local tv = gameplay_traffic.getTrafficData()[vehId]
+    if tv and (tv.role == 'taxi' or tv.autoRole == 'taxi' or tv.isTaxi) then
+      return true
+    end
+  end
+
+  return false
+end
+
 --- Devuelve el estado actual del vehículo para la interfaz UI.
 -- @param explicitVehId number|nil: ID opcional del vehículo si viene directamente de un evento del motor
--- @return table { inVehicle = boolean, vehicleId = number }
+-- @return table { inVehicle = boolean, vehicleId = number, isTaxi = boolean }
 function M.getVehicleState(explicitVehId)
   local inVeh = checkInVehicle()
   local veh = be:getPlayerVehicle(0)
   local vehId = -1
+  local isTaxi = false
+
   if inVeh then
     if explicitVehId and explicitVehId >= 0 then
       vehId = explicitVehId
     elseif veh then
       vehId = veh:getId()
     end
+
+    local currentVeh = veh
+    if explicitVehId and explicitVehId >= 0 and (not currentVeh or currentVeh:getId() ~= explicitVehId) then
+      currentVeh = be:getObjectByID(explicitVehId) or currentVeh
+    end
+
+    isTaxi = checkIsTaxi(currentVeh)
   end
+
   return {
     inVehicle = inVeh,
-    vehicleId = vehId
+    vehicleId = vehId,
+    isTaxi = isTaxi
   }
 end
 
@@ -253,6 +331,14 @@ M.onVehicleSpawned = function(vehicleID)
 end
 
 M.onVehicleDestroyed = function(vehicleID)
+  notifyVehicleState()
+end
+
+M.onTaxiViewEnter = function()
+  notifyVehicleState()
+end
+
+M.onTaxiRideChanged = function()
   notifyVehicleState()
 end
 

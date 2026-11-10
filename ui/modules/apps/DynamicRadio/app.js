@@ -35,6 +35,7 @@ angular.module('beamng.apps')
       $scope.isPoweredOn = true;          // Estado encendido/apagado del estéreo
       $scope.inVehicle = true;            // Si el jugador está dentro de un vehículo
       $scope.isEditingMode = false;       // Modo edición de interfaz (para posicionar la app)
+      $scope.isTaxi = false;              // Si el jugador está en un taxi (bloqueo de controles)
       $scope.mode = 'MP3';                // Modo activo: 'MP3' o 'RADIO'
       $scope.isPlaying = false;           // Si hay audio reproduciéndose actualmente
       $scope.volume = 0.75;               // Nivel de volumen (0.0 a 1.0)
@@ -87,7 +88,7 @@ angular.module('beamng.apps')
       audio.onplaying = function () {
         $scope.$evalAsync(function () {
           $scope.isPlaying = true;
-          $scope.statusText = ($scope.mode === 'RADIO') ? 'EN VIVO' : 'PLAY';
+          $scope.statusText = $scope.isTaxi ? 'TAXI' : (($scope.mode === 'RADIO') ? 'EN VIVO' : 'PLAY');
         });
       };
 
@@ -95,7 +96,7 @@ angular.module('beamng.apps')
         $scope.$evalAsync(function () {
           $scope.isPlaying = false;
           if ($scope.isPoweredOn) {
-            $scope.statusText = 'PAUSA';
+            $scope.statusText = $scope.isTaxi ? 'TAXI' : 'PAUSA';
           }
         });
       };
@@ -117,8 +118,8 @@ angular.module('beamng.apps')
       audio.onended = function () {
         $scope.$evalAsync(function () {
           if ($scope.isPoweredOn) {
-            // Avanza automáticamente a la siguiente pista al finalizar
-            $scope.nextTrack();
+            // Avanza automáticamente a la siguiente emisora/pista al finalizar
+            advanceTrackInternal();
           } else {
             $scope.isPlaying = false;
             $scope.statusText = 'FIN';
@@ -133,6 +134,7 @@ angular.module('beamng.apps')
        * Aplica el volumen del slider al elemento HTML5 audio.
        */
       $scope.applyVolume = function () {
+        if ($scope.isTaxi) return;
         var v = Math.max(0, Math.min(1, parseFloat($scope.volume) || 0));
         $scope.volume = v;
         audio.volume = v;
@@ -145,6 +147,7 @@ angular.module('beamng.apps')
        * Alterna el encendido del estéreo del auto.
        */
       $scope.togglePower = function () {
+        if ($scope.isTaxi) return;
         $scope.isPoweredOn = !$scope.isPoweredOn;
         if (!$scope.isPoweredOn) {
           audio.pause();
@@ -163,7 +166,7 @@ angular.module('beamng.apps')
        * Alterna entre reproducción de MP3 local y Radio simulada.
        */
       $scope.toggleMode = function () {
-        if (!$scope.isPoweredOn) return;
+        if ($scope.isTaxi || !$scope.isPoweredOn) return;
         var wasPlaying = $scope.isPlaying;
         audio.pause();
 
@@ -199,13 +202,17 @@ angular.module('beamng.apps')
           if ($scope.radioList.length > 0) {
             var st = $scope.radioList[$scope.currentRadioIdx];
             $scope.displayTitle = (st.title || st.filename).toUpperCase();
-            $scope.displaySubtitle = st.frequency || 'FM STEREO';
+            $scope.displaySubtitle = (st.frequency || 'FM STEREO') + ($scope.isTaxi ? ' • TAXI' : '');
             $scope.infoLeft = (st.frequency ? st.frequency + ' • ' : '') + 'DIAL ' + ($scope.currentRadioIdx + 1) + '/' + $scope.radioList.length;
           } else {
             $scope.displayTitle = 'SIN EMISORAS';
             $scope.displaySubtitle = 'COLOCA AUDIOS EN MUSIC_RADIO';
             $scope.infoLeft = 'RADIO 0/0';
           }
+        }
+
+        if ($scope.isTaxi) {
+          $scope.statusText = 'TAXI';
         }
       };
 
@@ -257,28 +264,9 @@ angular.module('beamng.apps')
       };
 
       /**
-       * Alterna entre Reproducir y Pausar.
+       * Avanza internamente a la siguiente pista o emisora (usado por el reproductor al terminar un audio).
        */
-      $scope.togglePlay = function () {
-        if (!$scope.isPoweredOn) return;
-
-        if ($scope.isPlaying) {
-          audio.pause();
-        } else {
-          if (!audio.src || audio.src === '' || audio.src === window.location.href) {
-            $scope.playCurrent();
-          } else {
-            audio.play().catch(function () {
-              $scope.playCurrent();
-            });
-          }
-        }
-      };
-
-      /**
-       * Pasa a la siguiente canción o dial de radio.
-       */
-      $scope.nextTrack = function () {
+      function advanceTrackInternal() {
         if (!$scope.isPoweredOn) return;
 
         if ($scope.mode === 'MP3') {
@@ -302,13 +290,40 @@ angular.module('beamng.apps')
             $scope.playCurrent();
           }
         }
+      }
+
+      /**
+       * Alterna entre Reproducir y Pausar (Bloqueado en Taxi).
+       */
+      $scope.togglePlay = function () {
+        if ($scope.isTaxi || !$scope.isPoweredOn) return;
+
+        if ($scope.isPlaying) {
+          audio.pause();
+        } else {
+          if (!audio.src || audio.src === '' || audio.src === window.location.href) {
+            $scope.playCurrent();
+          } else {
+            audio.play().catch(function () {
+              $scope.playCurrent();
+            });
+          }
+        }
       };
 
       /**
-       * Retrocede a la canción o dial de radio anterior.
+       * Pasa a la siguiente canción o dial de radio (Bloqueado en Taxi).
+       */
+      $scope.nextTrack = function () {
+        if ($scope.isTaxi || !$scope.isPoweredOn) return;
+        advanceTrackInternal();
+      };
+
+      /**
+       * Retrocede a la canción o dial de radio anterior (Bloqueado en Taxi).
        */
       $scope.prevTrack = function () {
-        if (!$scope.isPoweredOn) return;
+        if ($scope.isTaxi || !$scope.isPoweredOn) return;
 
         if ($scope.mode === 'MP3') {
           if ($scope.mp3List.length > 0) {
@@ -326,9 +341,10 @@ angular.module('beamng.apps')
       };
 
       /**
-       * Alterna el modo aleatorio (Shuffle) para canciones MP3.
+       * Alterna el modo aleatorio (Shuffle) para canciones MP3 (Bloqueado en Taxi).
        */
       $scope.toggleShuffle = function () {
+        if ($scope.isTaxi) return;
         $scope.isShuffle = !$scope.isShuffle;
       };
 
@@ -347,6 +363,8 @@ angular.module('beamng.apps')
        * @param {function} cb Callback opcional tras recargar
        */
       $scope.reloadAll = function (cb) {
+        if ($scope.isTaxi && typeof cb !== 'function') return;
+
         ensureLuaBackend(function () {
           bngApi.engineLua('extensions.dynamicRadio.getMp3List()', function (mp3Data) {
             bngApi.engineLua('extensions.dynamicRadio.getRadioList()', function (radioData) {
@@ -401,8 +419,9 @@ angular.module('beamng.apps')
       // Autoreproducción Aleatoria al Cambiar de Auto
       // ----------------------------------------------------------------------
       /**
-       * Selecciona aleatoriamente entre el modo 'RADIO' y 'MP3' (50% de probabilidad cada uno
-       * si ambos contienen audios), elige una pista o emisora aleatoria y la reproduce de inmediato.
+       * Selecciona el modo y reproduce automáticamente:
+       * - En Taxi: SIEMPRE modo 'RADIO' de forma obligatoria y aleatoria.
+       * - En coche normal: 50% de probabilidad aleatoria entre 'RADIO' o 'MP3'.
        */
       function playRandomOnCarSwitch() {
         if (!$scope.isPoweredOn) {
@@ -417,9 +436,12 @@ angular.module('beamng.apps')
           return;
         }
 
-        // Selección aleatoria del modo: 50% MP3 / 50% RADIO
         var pickedMode = 'MP3';
-        if (hasMp3 && hasRadio) {
+        if ($scope.isTaxi) {
+          // En modo taxi: reproducción obligatoria y exclusiva de RADIO
+          pickedMode = hasRadio ? 'RADIO' : (hasMp3 ? 'MP3' : 'RADIO');
+        } else if (hasMp3 && hasRadio) {
+          // Vehículo normal: 50% MP3 / 50% RADIO
           pickedMode = (Math.random() < 0.5) ? 'MP3' : 'RADIO';
         } else if (hasRadio) {
           pickedMode = 'RADIO';
@@ -460,10 +482,12 @@ angular.module('beamng.apps')
       // ----------------------------------------------------------------------
       // Detección y Control de Estado de Vehículo
       // ----------------------------------------------------------------------
-      function handleVehicleState(inVeh, vehicleId) {
+      function handleVehicleState(inVeh, vehicleId, isTaxi) {
         $scope.$evalAsync(function () {
           var prevInVeh = $scope.inVehicle;
+          var prevIsTaxi = $scope.isTaxi;
           $scope.inVehicle = !!inVeh;
+          $scope.isTaxi = !!isTaxi;
           var vehId = (typeof vehicleId === 'number') ? vehicleId : -1;
 
           if (!inVeh || vehId === -1) {
@@ -475,12 +499,13 @@ angular.module('beamng.apps')
             return;
           }
 
-          // El jugador está al volante de un vehículo válido
+          // El jugador está al volante o a bordo de un vehículo válido
           var isDifferentVehicle = (currentVehicleId !== null && currentVehicleId !== vehId);
           var isFirstVehicle = (currentVehicleId === null);
+          var taxiStateChanged = (!prevIsTaxi && $scope.isTaxi);
 
-          if (isFirstVehicle || isDifferentVehicle) {
-            // Subió a un auto diferente o es la primera vez que sube
+          if (isFirstVehicle || isDifferentVehicle || taxiStateChanged) {
+            // Subió a un auto diferente, primera vez, o se inició viaje/misión de taxi
             currentVehicleId = vehId;
             wasPlayingBeforeExit = false;
 
@@ -502,7 +527,7 @@ angular.module('beamng.apps')
       function checkVehicleState() {
         bngApi.engineLua('extensions.dynamicRadio.getVehicleState()', function (data) {
           if (data && typeof data.inVehicle === 'boolean') {
-            handleVehicleState(data.inVehicle, data.vehicleId);
+            handleVehicleState(data.inVehicle, data.vehicleId, data.isTaxi);
           }
         });
       }
@@ -518,7 +543,7 @@ angular.module('beamng.apps')
 
       $scope.$on('DynamicRadioVehicleState', function (event, data) {
         if (data && typeof data.inVehicle === 'boolean') {
-          handleVehicleState(data.inVehicle, data.vehicleId);
+          handleVehicleState(data.inVehicle, data.vehicleId, data.isTaxi);
         }
       });
 
@@ -535,6 +560,10 @@ angular.module('beamng.apps')
       });
 
       $scope.$on('onVehicleSpawned', function () {
+        checkVehicleState();
+      });
+
+      $scope.$on('onTaxiViewEnter', function () {
         checkVehicleState();
       });
 

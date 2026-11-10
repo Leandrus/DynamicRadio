@@ -21,6 +21,7 @@
   - Se oculta y pausa automáticamente cuando el jugador baja a pie (modo caminar).
   - **Autoreproducción aleatoria al cambiar de auto:** Siempre que te subes a un auto diferente o cambias de vehículo, el estéreo se enciende y reproduce automáticamente seleccionando al azar entre el modo **`FM RADIO`** o **`MP3 DISC`**, y escogiendo una pista o emisora aleatoria.
   - Si bajas a pie y vuelves a subir al mismo auto, reanuda la canción exactamente donde estaba.
+  - **Modo Taxi Inmersivo (Sin Control del Pasajero):** Cuando subes a un taxi (viajes en taxi de Carrera / RLS Overhaul o configuraciones de vehículo Taxi), la reproducción se bloquea exclusivamente en **`FM RADIO`** (sintonizando una emisora real al azar) y todos los controles de la interfaz quedan deshabilitados con el distintivo **`TAXI RADIO`**, simulando que el control de la radio pertenece exclusivamente al conductor del taxi.
 - **Conversor y Estandarizador Integrado (`_convertir_a_mp3.bat`):**
   - Script incluido en las carpetas de música para convertir automáticamente con un solo clic cualquier formato de audio (`.m4a`, `.aac`, `.opus`, `.ogg`, `.flac`, `.wav`, `.wma`) a MP3 de alta fidelidad (VBR q2).
   - Elimina los archivos temporales y estandariza los nombres de archivo al formato limpio `Artista - Canción.mp3`.

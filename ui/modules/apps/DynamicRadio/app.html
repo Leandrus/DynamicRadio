@@ -84,6 +84,14 @@
       padding: 1px 4px;
       font-size: 8px;
       text-transform: uppercase;
+      transition: all 0.2s ease;
+    }
+
+    .badge-mode.taxi-badge {
+      background: rgba(255, 179, 0, 0.25) !important;
+      border-color: rgba(255, 179, 0, 0.6) !important;
+      color: #ffb300 !important;
+      text-shadow: 0 0 6px rgba(255, 179, 0, 0.5) !important;
     }
 
     .lcd-compact.off .badge-mode {
@@ -231,6 +239,19 @@
       box-shadow: 0 0 5px rgba(0, 240, 255, 0.4);
     }
 
+    /* Estados cuando está a bordo de un taxi (interfaz bloqueada) */
+    .ctrl-bar.taxi-disabled,
+    .stereo-vol-panel.taxi-disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .ctrl-bar.taxi-disabled .btn-c,
+    .stereo-vol-panel.taxi-disabled input {
+      pointer-events: none;
+      cursor: not-allowed;
+    }
+
     /* Panel lateral derecho: Deslizador de volumen vertical */
     .stereo-vol-panel {
       width: 28px;
@@ -299,8 +320,8 @@
       <div class="lcd-compact" ng-class="{'off': !isPoweredOn}">
         <!-- Fila superior: Modo, Estado y Ecualizador -->
         <div class="lcd-top">
-          <span class="badge-mode">{{ isPoweredOn ? (mode === 'RADIO' ? 'FM RADIO' : 'MP3 DISC') : 'STANDBY' }}</span>
-          <span>{{ isPoweredOn ? statusText : 'OFF' }}</span>
+          <span class="badge-mode" ng-class="{'taxi-badge': isTaxi}">{{ isPoweredOn ? (isTaxi ? 'TAXI RADIO' : (mode === 'RADIO' ? 'FM RADIO' : 'MP3 DISC')) : 'STANDBY' }}</span>
+          <span>{{ isPoweredOn ? (isTaxi ? '🔒 TAXI' : statusText) : 'OFF' }}</span>
           <div class="eq-bars" ng-class="{'playing': isPoweredOn && isPlaying}">
             <div class="eq-bar"></div>
             <div class="eq-bar"></div>
@@ -327,49 +348,49 @@
       </div>
 
       <!-- Barra de botones de control -->
-      <div class="ctrl-bar">
+      <div class="ctrl-bar" ng-class="{'taxi-disabled': isTaxi}" title="{{ isTaxi ? 'Radio de Taxi: Control exclusivo del conductor' : '' }}">
         <!-- Botón Power -->
-        <button class="btn-c btn-pwr" ng-class="{'active-pwr': isPoweredOn}" ng-click="togglePower()" title="Encender / Apagar">
+        <button class="btn-c btn-pwr" ng-class="{'active-pwr': isPoweredOn}" ng-click="togglePower()" ng-disabled="isTaxi" title="{{ isTaxi ? 'Control del conductor' : 'Encender / Apagar' }}">
           PWR
         </button>
 
         <!-- Botón de Modo (SRC: MP3 / RADIO) -->
-        <button class="btn-c btn-src" ng-click="toggleMode()" ng-disabled="!isPoweredOn" title="Cambiar modo (MP3 / RADIO)">
+        <button class="btn-c btn-src" ng-click="toggleMode()" ng-disabled="isTaxi || !isPoweredOn" title="{{ isTaxi ? 'Control del conductor' : 'Cambiar modo (MP3 / RADIO)' }}">
           SRC: {{ mode }}
         </button>
 
         <!-- Pista anterior -->
-        <button class="btn-c" ng-click="prevTrack()" ng-disabled="!isPoweredOn" title="Pista anterior / Dial atrás">
+        <button class="btn-c" ng-click="prevTrack()" ng-disabled="isTaxi || !isPoweredOn" title="{{ isTaxi ? 'Control del conductor' : 'Pista anterior / Dial atrás' }}">
           |◄◄
         </button>
 
         <!-- Reproducir / Pausa -->
-        <button class="btn-c btn-play" ng-click="togglePlay()" ng-disabled="!isPoweredOn" title="Reproducir / Pausa">
+        <button class="btn-c btn-play" ng-click="togglePlay()" ng-disabled="isTaxi || !isPoweredOn" title="{{ isTaxi ? 'Control del conductor' : 'Reproducir / Pausa' }}">
           {{ isPlaying ? '❚❚' : '►' }}
         </button>
 
         <!-- Siguiente pista -->
-        <button class="btn-c" ng-click="nextTrack()" ng-disabled="!isPoweredOn" title="Siguiente pista / Dial adelante">
+        <button class="btn-c" ng-click="nextTrack()" ng-disabled="isTaxi || !isPoweredOn" title="{{ isTaxi ? 'Control del conductor' : 'Siguiente pista / Dial adelante' }}">
           ►►|
         </button>
 
         <!-- Aleatorio / Shuffle (Modo MP3) -->
-        <button class="btn-c" ng-if="mode === 'MP3'" ng-click="toggleShuffle()" ng-class="{'active-toggle': isShuffle}" ng-disabled="!isPoweredOn" title="Modo aleatorio (Shuffle)">
+        <button class="btn-c" ng-if="mode === 'MP3'" ng-click="toggleShuffle()" ng-class="{'active-toggle': isShuffle}" ng-disabled="isTaxi || !isPoweredOn" title="{{ isTaxi ? 'Control del conductor' : 'Modo aleatorio (Shuffle)' }}">
           🔀
         </button>
 
         <!-- Botón Recargar archivos -->
-        <button class="btn-c" ng-click="reloadAll()" ng-disabled="!isPoweredOn" title="Recargar lista de pistas">
+        <button class="btn-c" ng-click="reloadAll()" ng-disabled="isTaxi || !isPoweredOn" title="{{ isTaxi ? 'Control del conductor' : 'Recargar lista de pistas' }}">
           ⟳
         </button>
       </div>
     </div>
 
     <!-- Columna Derecha: Control de Volumen Vertical -->
-    <div class="stereo-vol-panel" ng-class="{'off': !isPoweredOn}">
+    <div class="stereo-vol-panel" ng-class="{'off': !isPoweredOn, 'taxi-disabled': isTaxi}" title="{{ isTaxi ? 'Radio de Taxi: Control exclusivo del conductor' : '' }}">
       <span class="vol-icon">VOL</span>
       <div class="vol-vert-track">
-        <input type="range" orient="vertical" class="vol-slider-vert" min="0" max="1" step="0.05" ng-model="volume" ng-change="applyVolume()" ng-disabled="!isPoweredOn" title="Volumen: {{ (volume * 100 | number:0) }}%">
+        <input type="range" orient="vertical" class="vol-slider-vert" min="0" max="1" step="0.05" ng-model="volume" ng-change="applyVolume()" ng-disabled="isTaxi || !isPoweredOn" title="{{ isTaxi ? 'Control del conductor' : 'Volumen: ' + (volume * 100 | number:0) + '%' }}">
       </div>
       <span class="vol-val">{{ isPoweredOn ? (volume * 100 | number:0) + '%' : '--' }}</span>
     </div>
