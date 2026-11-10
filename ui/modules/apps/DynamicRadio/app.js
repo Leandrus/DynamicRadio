@@ -28,27 +28,7 @@ angular.module('beamng.apps')
       // ----------------------------------------------------------------------
       var audio = new Audio();
       audio.preload = 'auto';
-      var pendingRadioSeek = false;       // Bandera para sintonización en punto aleatorio en modo RADIO
       var trackPlayStartTime = 0;         // Timestamp del momento en que empezó a sonar la pista actual
-
-      /**
-       * Aplica un punto de reproducción aleatorio (entre 0% y 90% de la duración)
-       * cuando se sintoniza una emisora en modo RADIO, simulando una transmisión en vivo.
-       */
-      function applyPendingRadioSeek() {
-        if (!pendingRadioSeek) return;
-        if (!isFinite(audio.duration) || audio.duration <= 10) return;
-        if (audio.readyState < 1) return;
-
-        pendingRadioSeek = false;
-        var maxPercent = 0.90; // Entre 0% (inicio) y 90% del audio
-        var randomTime = Math.random() * (audio.duration * maxPercent);
-        try {
-          audio.currentTime = randomTime;
-        } catch (e) {
-          $log.warn('DynamicRadio: no se pudo ajustar punto aleatorio en radio', e);
-        }
-      }
 
       // ----------------------------------------------------------------------
       // Estado del Componente
@@ -106,10 +86,6 @@ angular.module('beamng.apps')
       // ----------------------------------------------------------------------
       // Controladores de Eventos del Elemento Audio HTML5
       // ----------------------------------------------------------------------
-      audio.onloadedmetadata = function () {
-        applyPendingRadioSeek();
-      };
-
       audio.onplaying = function () {
         trackPlayStartTime = Date.now();
         $scope.$evalAsync(function () {
@@ -274,18 +250,7 @@ angular.module('beamng.apps')
             audio.pause();
             trackPlayStartTime = Date.now();
             audio.src = item.path;
-
-            // En modo RADIO, sintonizar en un punto aleatorio (entre 0% y 90% de la duración)
-            // para dar la sensación realista de que la emisora ya estaba en vivo transmitiendo
-            if ($scope.mode === 'RADIO') {
-              pendingRadioSeek = true;
-            } else {
-              pendingRadioSeek = false;
-            }
-
             audio.load();
-            applyPendingRadioSeek();
-
             $scope.applyVolume();
             var playPromise = audio.play();
             if (playPromise !== undefined) {

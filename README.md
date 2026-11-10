@@ -15,7 +15,7 @@
 - **Pantalla LCD Digital Retroiluminada:** Muestra el título de la canción/emisora, dial FM, reloj digital en tiempo real, barras animadas de ecualizador y porcentaje de volumen.
 - **Modo Dual (`SRC`):**
   - **`MP3 DISC`:** Reproduce tu colección personal de canciones con soporte para orden aleatorio (**`🔀`**).
-  - **`FM RADIO`:** Simula sintonización de radio real con diales FM ordenados numéricamente (ej. *89.9 FM*, *91.5 FM*, *102.9 FM*). Sintoniza automáticamente en un punto aleatorio del audio (entre 0% y 90%) para transmitir la sensación auténtica de que la estación ya estaba emitiendo en vivo.
+  - **`FM RADIO`:** Simula sintonización de radio real con diales FM ordenados numéricamente (ej. *89.9 FM*, *91.5 FM*, *102.9 FM*). Reproducción inmediata y continua de emisoras de radio locales.
 - **Detección Automática de Vehículo & Autoreproducción Inteligente:**
   - Se muestra únicamente cuando el jugador está conduciendo un vehículo.
   - Se oculta y pausa automáticamente cuando el jugador baja a pie (modo caminar).
