@@ -12,8 +12,10 @@
 local M = {}
 
 -- ----------------------------------------------------------------------------
--- VEHICLE STATE DETECTION
+-- VEHICLE & TAXI PASSENGER STATE DETECTION
 -- ----------------------------------------------------------------------------
+
+local playerPermissionMode = "driver" -- "driver" o "passenger"
 
 --- Comprueba si el jugador está actualmente al volante de un vehículo.
 -- Retorna false si está a pie (modo caminar) o si no hay vehículo activo.
@@ -28,31 +30,13 @@ local function checkInVehicle()
   return true
 end
 
---- Comprueba si el vehículo actual o la sesión de juego corresponde a un taxi.
--- Detecta:
--- 1. Si el jugador es pasajero de un viaje en taxi activo (Career Mode o RLS Overhaul).
--- 2. Si el jugador está realizando un trabajo/misión de taxi activo.
--- 3. Si el vehículo activo es una configuración o modelo de taxi (.pc, JBeam o nombre).
--- 4. Si el vehículo tiene el rol de tráfico 'taxi'.
--- @param veh table|nil: Objeto vehículo de BeamNG
+--- Comprueba si el vehículo físico tiene configuración, skin o modelo de taxi.
+-- @param veh table|nil
 -- @return boolean
-local function checkIsTaxi(veh)
-  -- 1. Viaje en taxi activo (pasajero en taxi contratado)
-  if extensions.overhaul_integration_services_taxi and extensions.overhaul_integration_services_taxi.isTaxiRideActive and extensions.overhaul_integration_services_taxi.isTaxiRideActive() then
-    return true
-  end
-  if extensions.gameplay_taxi and extensions.gameplay_taxi.isTaxiRideActive and extensions.gameplay_taxi.isTaxiRideActive() then
-    return true
-  end
-
-  -- 2. Misión o trabajo de taxista activo
-  if extensions.overhaul_jobs_taxi_taxi and extensions.overhaul_jobs_taxi_taxi.isTaxiJobActive and extensions.overhaul_jobs_taxi_taxi.isTaxiJobActive() then
-    return true
-  end
-
+local function isTaxiVehicle(veh)
   if not veh then return false end
 
-  -- 3. Archivo de configuración del vehículo (.pc / partConfig)
+  -- 1. Archivo de configuración del vehículo (.pc / partConfig)
   local partConfig = veh.partConfig
   if (not partConfig or partConfig == "") and veh.getField then
     partConfig = veh:getField("partConfig", "")
@@ -61,7 +45,7 @@ local function checkIsTaxi(veh)
     return true
   end
 
-  -- 4. Nombre JBeam del modelo
+  -- 2. Nombre JBeam del modelo
   local jbeam = veh.JBeam
   if (not jbeam or jbeam == "") and veh.getJBeamFilename then
     jbeam = veh:getJBeamFilename()
@@ -70,7 +54,7 @@ local function checkIsTaxi(veh)
     return true
   end
 
-  -- 5. Metadatos de core_vehicles si están disponibles
+  -- 3. Metadatos de core_vehicles si están disponibles
   if core_vehicles and core_vehicles.getCurrentVehicleDetails then
     local details = core_vehicles.getCurrentVehicleDetails()
     if details then
@@ -83,7 +67,7 @@ local function checkIsTaxi(veh)
     end
   end
 
-  -- 6. Rol de tráfico si está registrado
+  -- 4. Rol de tráfico si está registrado
   if gameplay_traffic and gameplay_traffic.getTrafficData then
     local vehId = veh:getId()
     local tv = gameplay_traffic.getTrafficData()[vehId]
@@ -95,6 +79,60 @@ local function checkIsTaxi(veh)
   return false
 end
 
+--- Comprueba si el jugador se encuentra EXCLUSIVAMENTE en calidad de PASAJERO en un taxi.
+-- Si el jugador es quien CONDUCE el taxi (taxista en misión o conduciendo un vehículo taxi),
+-- esta función retorna false para permitirle un control 100% normal del estéreo.
+-- @param veh table|nil: Objeto vehículo de BeamNG
+-- @return boolean
+local function checkIsTaxiPassenger(veh)
+  -- 1. Si el jugador es el taxista en una misión activa de taxi, el jugador ES el conductor -> false
+  if extensions.overhaul_jobs_taxi_taxi and extensions.overhaul_jobs_taxi_taxi.isTaxiJobActive and extensions.overhaul_jobs_taxi_taxi.isTaxiJobActive() then
+    return false
+  end
+
+  -- 2. Viaje en taxi contratado como pasajero (RLS Career Overhaul Taxi Service)
+  if extensions.overhaul_integration_services_taxi then
+    local svc = extensions.overhaul_integration_services_taxi
+    if svc.isTaxiRideActive and svc.isTaxiRideActive() then
+      return true
+    end
+    if svc.isTaxiViewActive and svc.isTaxiViewActive() then
+      return true
+    end
+    if svc.getTaxiViewData then
+      local data = svc.getTaxiViewData()
+      if data and data.playerCurrentPhase and data.playerCurrentPhase ~= "none" then
+        return true
+      end
+    end
+  end
+
+  -- 3. Viaje en taxi contratado como pasajero (BeamNG stock gameplay_taxi)
+  if extensions.gameplay_taxi then
+    local svc = extensions.gameplay_taxi
+    if svc.isTaxiRideActive and svc.isTaxiRideActive() then
+      return true
+    end
+    if svc.isTaxiViewActive and svc.isTaxiViewActive() then
+      return true
+    end
+    if svc.getTaxiViewData then
+      local data = svc.getTaxiViewData()
+      if data and data.playerCurrentPhase and data.playerCurrentPhase ~= "none" then
+        return true
+      end
+    end
+  end
+
+  -- 4. Si el jugador está explícitamente en el asiento de pasajero a bordo de un taxi
+  if playerPermissionMode == "passenger" and isTaxiVehicle(veh) then
+    return true
+  end
+
+  -- En cualquier otro caso (el jugador es el conductor del taxi o de un auto común) -> false
+  return false
+end
+
 --- Devuelve el estado actual del vehículo para la interfaz UI.
 -- @param explicitVehId number|nil: ID opcional del vehículo si viene directamente de un evento del motor
 -- @return table { inVehicle = boolean, vehicleId = number, isTaxi = boolean }
@@ -102,7 +140,7 @@ function M.getVehicleState(explicitVehId)
   local inVeh = checkInVehicle()
   local veh = be:getPlayerVehicle(0)
   local vehId = -1
-  local isTaxi = false
+  local isPassengerInTaxi = false
 
   if inVeh then
     if explicitVehId and explicitVehId >= 0 then
@@ -116,13 +154,13 @@ function M.getVehicleState(explicitVehId)
       currentVeh = be:getObjectByID(explicitVehId) or currentVeh
     end
 
-    isTaxi = checkIsTaxi(currentVeh)
+    isPassengerInTaxi = checkIsTaxiPassenger(currentVeh)
   end
 
   return {
     inVehicle = inVeh,
     vehicleId = vehId,
-    isTaxi = isTaxi
+    isTaxi = isPassengerInTaxi
   }
 end
 
@@ -340,6 +378,17 @@ end
 
 M.onTaxiRideChanged = function()
   notifyVehicleState()
+end
+
+M.onPlayerVehiclePresenceChanged = function(playerIndex, _, presence)
+  if not playerIndex or playerIndex == 0 then
+    if presence and presence.permissionMode then
+      playerPermissionMode = presence.permissionMode
+    else
+      playerPermissionMode = "driver"
+    end
+    notifyVehicleState()
+  end
 end
 
 M.onExtensionLoaded = function()

@@ -502,10 +502,11 @@ angular.module('beamng.apps')
           // El jugador está al volante o a bordo de un vehículo válido
           var isDifferentVehicle = (currentVehicleId !== null && currentVehicleId !== vehId);
           var isFirstVehicle = (currentVehicleId === null);
-          var taxiStateChanged = (!prevIsTaxi && $scope.isTaxi);
+          var taxiStarted = (!prevIsTaxi && $scope.isTaxi);
+          var taxiEnded = (prevIsTaxi && !$scope.isTaxi);
 
-          if (isFirstVehicle || isDifferentVehicle || taxiStateChanged) {
-            // Subió a un auto diferente, primera vez, o se inició viaje/misión de taxi
+          if (isFirstVehicle || isDifferentVehicle || taxiStarted) {
+            // Subió a un auto diferente, primera vez, o se inició viaje como pasajero de taxi
             currentVehicleId = vehId;
             wasPlayingBeforeExit = false;
 
@@ -519,6 +520,9 @@ angular.module('beamng.apps')
             if (!prevInVeh && wasPlayingBeforeExit && $scope.isPoweredOn) {
               wasPlayingBeforeExit = false;
               audio.play().catch(function () {});
+            } else if (taxiEnded) {
+              // Finalizó el viaje como pasajero: restaurar visualización normal y desbloquear
+              $scope.updateDisplay();
             }
           }
         });
@@ -564,6 +568,14 @@ angular.module('beamng.apps')
       });
 
       $scope.$on('onTaxiViewEnter', function () {
+        checkVehicleState();
+      });
+
+      $scope.$on('onTaxiRideChanged', function () {
+        checkVehicleState();
+      });
+
+      $scope.$on('OverhaulPassengerMode', function () {
         checkVehicleState();
       });
 
