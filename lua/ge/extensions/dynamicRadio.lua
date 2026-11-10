@@ -29,19 +29,28 @@ local function checkInVehicle()
 end
 
 --- Devuelve el estado actual del vehículo para la interfaz UI.
+-- @param explicitVehId number|nil: ID opcional del vehículo si viene directamente de un evento del motor
 -- @return table { inVehicle = boolean, vehicleId = number }
-function M.getVehicleState()
+function M.getVehicleState(explicitVehId)
   local inVeh = checkInVehicle()
   local veh = be:getPlayerVehicle(0)
+  local vehId = -1
+  if inVeh then
+    if explicitVehId and explicitVehId >= 0 then
+      vehId = explicitVehId
+    elseif veh then
+      vehId = veh:getId()
+    end
+  end
   return {
     inVehicle = inVeh,
-    vehicleId = veh and veh:getId() or -1
+    vehicleId = vehId
   }
 end
 
 --- Emite un evento a guihooks para notificar a AngularJS del cambio de vehículo.
-local function notifyVehicleState()
-  local state = M.getVehicleState()
+local function notifyVehicleState(explicitVehId)
+  local state = M.getVehicleState(explicitVehId)
   guihooks.trigger("DynamicRadioVehicleState", state)
 end
 
@@ -224,7 +233,11 @@ end
 -- ----------------------------------------------------------------------------
 
 M.onVehicleSwitched = function(oid, nid, player)
-  notifyVehicleState()
+  if not player or player == 0 then
+    notifyVehicleState(nid)
+  else
+    notifyVehicleState()
+  end
 end
 
 M.onCameraChanged = function()
@@ -232,6 +245,14 @@ M.onCameraChanged = function()
 end
 
 M.onVehicleResetted = function(vehicleID)
+  notifyVehicleState(vehicleID)
+end
+
+M.onVehicleSpawned = function(vehicleID)
+  notifyVehicleState()
+end
+
+M.onVehicleDestroyed = function(vehicleID)
   notifyVehicleState()
 end
 

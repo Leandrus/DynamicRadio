@@ -238,6 +238,8 @@ angular.module('beamng.apps')
             var playPromise = audio.play();
             if (playPromise !== undefined) {
               playPromise.catch(function (err) {
+                // Si la promesa fue interrumpida por un cambio rápido de pista o auto, no mostrar error
+                if (err && (err.name === 'AbortError' || err.code === 20)) return;
                 $scope.$evalAsync(function () {
                   $scope.isPlaying = false;
                   $scope.statusText = 'PAUSA';
@@ -331,6 +333,13 @@ angular.module('beamng.apps')
       };
 
       // ----------------------------------------------------------------------
+      // Estado de Carga y Cambio de Vehículo
+      // ----------------------------------------------------------------------
+      var currentVehicleId = null;        // ID del vehículo actual del jugador
+      var listsLoaded = false;            // Bandera que indica si las listas están cargadas
+      var pendingAutoPlayOnCarSwitch = false; // Reproducción diferida si aún no cargan las listas
+
+      // ----------------------------------------------------------------------
       // Recarga de Listas desde el Sistema de Archivos
       // ----------------------------------------------------------------------
       /**
@@ -345,7 +354,6 @@ angular.module('beamng.apps')
                 if (Array.isArray(mp3Data)) {
                   $scope.mp3List = mp3Data;
                   if ($scope.mp3List.length > 0) {
-                    // Seleccionar siempre primera canción de forma aleatoria
                     $scope.currentMp3Idx = Math.floor(Math.random() * $scope.mp3List.length);
                   } else {
                     $scope.currentMp3Idx = 0;
@@ -354,13 +362,20 @@ angular.module('beamng.apps')
                 if (Array.isArray(radioData)) {
                   $scope.radioList = radioData;
                   if ($scope.radioList.length > 0) {
-                    // Seleccionar siempre primera emisora de forma aleatoria
                     $scope.currentRadioIdx = Math.floor(Math.random() * $scope.radioList.length);
                   } else {
                     $scope.currentRadioIdx = 0;
                   }
                 }
+                listsLoaded = true;
                 $scope.updateDisplay();
+
+                // Si ocurrió un cambio de auto antes de terminar la carga, ejecutar ahora
+                if (pendingAutoPlayOnCarSwitch) {
+                  pendingAutoPlayOnCarSwitch = false;
+                  playRandomOnCarSwitch();
+                }
+
                 if (typeof cb === 'function') cb();
               });
             });
@@ -383,22 +398,100 @@ angular.module('beamng.apps')
       }, 1000);
 
       // ----------------------------------------------------------------------
+      // Autoreproducción Aleatoria al Cambiar de Auto
+      // ----------------------------------------------------------------------
+      /**
+       * Selecciona aleatoriamente entre el modo 'RADIO' y 'MP3' (50% de probabilidad cada uno
+       * si ambos contienen audios), elige una pista o emisora aleatoria y la reproduce de inmediato.
+       */
+      function playRandomOnCarSwitch() {
+        if (!$scope.isPoweredOn) {
+          $scope.isPoweredOn = true;
+        }
+
+        var hasMp3 = ($scope.mp3List && $scope.mp3List.length > 0);
+        var hasRadio = ($scope.radioList && $scope.radioList.length > 0);
+
+        if (!hasMp3 && !hasRadio) {
+          $scope.updateDisplay();
+          return;
+        }
+
+        // Selección aleatoria del modo: 50% MP3 / 50% RADIO
+        var pickedMode = 'MP3';
+        if (hasMp3 && hasRadio) {
+          pickedMode = (Math.random() < 0.5) ? 'MP3' : 'RADIO';
+        } else if (hasRadio) {
+          pickedMode = 'RADIO';
+        } else {
+          pickedMode = 'MP3';
+        }
+
+        $scope.mode = pickedMode;
+
+        // Selección aleatoria de pista o dial dentro del modo elegido
+        if (pickedMode === 'MP3' && hasMp3) {
+          if ($scope.mp3List.length > 1) {
+            var newMp3Idx = Math.floor(Math.random() * $scope.mp3List.length);
+            if (newMp3Idx === $scope.currentMp3Idx) {
+              newMp3Idx = (newMp3Idx + 1) % $scope.mp3List.length;
+            }
+            $scope.currentMp3Idx = newMp3Idx;
+          } else {
+            $scope.currentMp3Idx = 0;
+          }
+        } else if (pickedMode === 'RADIO' && hasRadio) {
+          if ($scope.radioList.length > 1) {
+            var newRadioIdx = Math.floor(Math.random() * $scope.radioList.length);
+            if (newRadioIdx === $scope.currentRadioIdx) {
+              newRadioIdx = (newRadioIdx + 1) % $scope.radioList.length;
+            }
+            $scope.currentRadioIdx = newRadioIdx;
+          } else {
+            $scope.currentRadioIdx = 0;
+          }
+        }
+
+        wasPlayingBeforeExit = false;
+        $scope.updateDisplay();
+        $scope.playCurrent();
+      }
+
+      // ----------------------------------------------------------------------
       // Detección y Control de Estado de Vehículo
       // ----------------------------------------------------------------------
-      function setVehicleState(inVeh) {
+      function handleVehicleState(inVeh, vehicleId) {
         $scope.$evalAsync(function () {
-          var changed = ($scope.inVehicle !== inVeh);
-          $scope.inVehicle = inVeh;
+          var prevInVeh = $scope.inVehicle;
+          $scope.inVehicle = !!inVeh;
+          var vehId = (typeof vehicleId === 'number') ? vehicleId : -1;
 
-          if (!inVeh) {
-            // El jugador bajó del vehículo -> pausar reproducción
+          if (!inVeh || vehId === -1) {
+            // El jugador bajó del vehículo o está a pie (walk mode) -> pausar estéreo
             if ($scope.isPlaying) {
               wasPlayingBeforeExit = true;
               audio.pause();
             }
+            return;
+          }
+
+          // El jugador está al volante de un vehículo válido
+          var isDifferentVehicle = (currentVehicleId !== null && currentVehicleId !== vehId);
+          var isFirstVehicle = (currentVehicleId === null);
+
+          if (isFirstVehicle || isDifferentVehicle) {
+            // Subió a un auto diferente o es la primera vez que sube
+            currentVehicleId = vehId;
+            wasPlayingBeforeExit = false;
+
+            if (listsLoaded) {
+              playRandomOnCarSwitch();
+            } else {
+              pendingAutoPlayOnCarSwitch = true;
+            }
           } else {
-            // El jugador volvió a subir al vehículo -> reanudar si estaba sonando
-            if (changed && wasPlayingBeforeExit && $scope.isPoweredOn) {
+            // Es el mismo vehículo (ej. se bajó un momento y volvió a subir) -> reanudar si estaba sonando
+            if (!prevInVeh && wasPlayingBeforeExit && $scope.isPoweredOn) {
               wasPlayingBeforeExit = false;
               audio.play().catch(function () {});
             }
@@ -409,7 +502,7 @@ angular.module('beamng.apps')
       function checkVehicleState() {
         bngApi.engineLua('extensions.dynamicRadio.getVehicleState()', function (data) {
           if (data && typeof data.inVehicle === 'boolean') {
-            setVehicleState(data.inVehicle);
+            handleVehicleState(data.inVehicle, data.vehicleId);
           }
         });
       }
@@ -425,7 +518,7 @@ angular.module('beamng.apps')
 
       $scope.$on('DynamicRadioVehicleState', function (event, data) {
         if (data && typeof data.inVehicle === 'boolean') {
-          setVehicleState(data.inVehicle);
+          handleVehicleState(data.inVehicle, data.vehicleId);
         }
       });
 
@@ -437,8 +530,16 @@ angular.module('beamng.apps')
         checkVehicleState();
       });
 
+      $scope.$on('onVehicleSwitched', function () {
+        checkVehicleState();
+      });
+
+      $scope.$on('onVehicleSpawned', function () {
+        checkVehicleState();
+      });
+
       // Chequeo periódico de seguridad para el estado del vehículo
-      var vehicleCheckTimer = setInterval(checkVehicleState, 2000);
+      var vehicleCheckTimer = setInterval(checkVehicleState, 1500);
 
       // ----------------------------------------------------------------------
       // Inicialización de la Aplicación
