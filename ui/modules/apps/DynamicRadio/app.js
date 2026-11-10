@@ -344,13 +344,19 @@ angular.module('beamng.apps')
               $scope.$evalAsync(function () {
                 if (Array.isArray(mp3Data)) {
                   $scope.mp3List = mp3Data;
-                  if ($scope.currentMp3Idx >= $scope.mp3List.length) {
+                  if ($scope.mp3List.length > 0) {
+                    // Seleccionar siempre primera canción de forma aleatoria
+                    $scope.currentMp3Idx = Math.floor(Math.random() * $scope.mp3List.length);
+                  } else {
                     $scope.currentMp3Idx = 0;
                   }
                 }
                 if (Array.isArray(radioData)) {
                   $scope.radioList = radioData;
-                  if ($scope.currentRadioIdx >= $scope.radioList.length) {
+                  if ($scope.radioList.length > 0) {
+                    // Seleccionar siempre primera emisora de forma aleatoria
+                    $scope.currentRadioIdx = Math.floor(Math.random() * $scope.radioList.length);
+                  } else {
                     $scope.currentRadioIdx = 0;
                   }
                 }
